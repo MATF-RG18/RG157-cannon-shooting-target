@@ -2,7 +2,7 @@
 
 
 This is a cannon ball shooting game made using C with openGL.
-![](screenshot4.png)
+![](screenshotFinal.png)
 
 ## Usage
 
