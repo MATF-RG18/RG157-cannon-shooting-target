@@ -56,10 +56,10 @@ This is a cannon ball shooting game made using C with openGL.
     <td>Switch to keyboard</td><td>k/K</td>
   </tr>
   <tr>
-    <th colspan="1">Cannon rotation</th>
+    <th colspan="2">Cannon rotation</th>
   </tr>
   <tr>
-    <td>Mouse movement</td>
+    <td colspan="2">Mouse movement</td>
   </tr>
   <tr>
     <th colspan="2">Cannon shooting</th>
