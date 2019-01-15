@@ -4,7 +4,7 @@
 This is a cannon ball shooting game made using C with openGL.
 ![](screenshotFinal.png)
 
-## Usage
+## Usage when on keyboard mode
 
 <table>
   <tr>
@@ -43,7 +43,7 @@ This is a cannon ball shooting game made using C with openGL.
 </table>
 
 
-## Usage
+## Usage when on mouse mode
 
 <table>
   <tr>
@@ -56,7 +56,7 @@ This is a cannon ball shooting game made using C with openGL.
     <td>Switch to keyboard</td><td>k/K</td>
   </tr>
   <tr>
-    <th colspan="2">Cannon rotation</th>
+    <th colspan="1">Cannon rotation</th>
   </tr>
   <tr>
     <td>Mouse movement</td>
