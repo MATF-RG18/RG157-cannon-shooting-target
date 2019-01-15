@@ -6,8 +6,11 @@
 
 //Macro for cannon rotations
 #define INCREMENT_CANNON_ANGLE 5
-#define MAX_TARGETS 6
+
+#define MAX_TARGETS 15 //number of chars in level.txt files
 #define TARGET_SIZE 0.5
+
+#define NUMBER_OF_LEVELS 3
 
 //These are macros for the sea
 #define U_FROM -100
@@ -44,7 +47,7 @@ static void on_timer2(int value);
 static float function(float u, float v);
 static void set_vertex_and_normal(float u, float v);
 static void plot_function();
-
+static void read_map();
 //Time for sea movement
 float t;
 
@@ -56,6 +59,10 @@ static int animation_ongoing2;
 
 //here we will store how many balls the cannon fired and how much of them hit the target
 int shot, hit;
+//text that appears when the user has shot each of the targets and there are no more levels
+char you_won_text[100];
+int initial_number_of_boxes;
+int level; //level number that we're currently on
 
 //coordinates along which the cannon rotates when aiming
 float cannon_movement_x;
@@ -119,6 +126,9 @@ int main(int argc, char** argv){
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_NORMALIZE);
 
+    //we start with level 1
+    level = 1;
+
     //Time for sea movement
     t = 0;
 
@@ -140,6 +150,7 @@ int main(int argc, char** argv){
     //Balls shot and balls that hit the target
     hit = 0;
     shot = 0;
+    initial_number_of_boxes = 0;
 
     //Time passed since ball was fired
     Time = 0;
@@ -147,32 +158,10 @@ int main(int argc, char** argv){
     //Flag for ball timer
     animation_ongoing = 0;
 
+    read_map();
+
     //initially we use the mouse for giving commands
     k = 0;
-
-    int i;
-    for(i = 0; i < MAX_TARGETS; i++) {
-        targets[i].is_visible = 1;
-        targets[i].z = PLATFORM_DISTANCE;
-    }
-
-    targets[0].x = -1;
-    targets[0].y = -0.5;
-
-    targets[1].x = 0;
-    targets[1].y = -0.5;
-
-    targets[2].x = 1;
-    targets[2].y = -0.5;
-
-    targets[3].x = -0.5;
-    targets[3].y = 0;
-
-    targets[4].x = 0.5;
-    targets[4].y = 0;
-
-    targets[5].x = 0;
-    targets[5].y = 0.5;
 
     Image *image;
     glEnable(GL_TEXTURE_2D);
@@ -221,6 +210,9 @@ int main(int argc, char** argv){
 }
 
 static void on_mouse(int button, int state, int x, int y){
+  /*on left mouse button we shoot the cannon ball
+  and after it is shot we need to click the right mouse button to reload
+  so that we could shoot the ball again*/
     if(k == 0){
       if(button == GLUT_LEFT_BUTTON && !animation_ongoing) {
           Time = 0;
@@ -385,6 +377,16 @@ static void on_Timer(int value){
               ){
                 hit += 1;
                 targets[i].is_visible = 0;
+                if(hit == initial_number_of_boxes){
+                  /*this means that the current level is over, because all of the
+                  targets are hit
+                  so we need to reset our variables and increase the level variable*/
+                  shot = 0;
+                  hit = 0;
+                  initial_number_of_boxes = 0;
+                  level++;
+                  read_map();
+                }
             }
         }
     }
@@ -397,6 +399,45 @@ static void on_Timer(int value){
     if(animation_ongoing) {
         glutTimerFunc(50, on_Timer, 0);
     }
+}
+
+static void read_map(){
+  char* levelName = (char*)malloc(12*sizeof(char));
+  sprintf(levelName, "level%d.txt", level);
+  FILE* mapLevel = fopen(levelName, "r");
+  if(mapLevel == NULL){
+    sprintf(you_won_text, "YOU WON!");
+    return;
+  }
+
+  int k;
+  int j;
+  double x = -1;
+  double y = 0.5;
+  int numOfCols = 5;
+  int numOfRows = 3;
+
+  for(k = 0; k < numOfRows; k++){
+    for(j = 0; j < numOfCols; j++){
+      char c;
+      fscanf(mapLevel, "%c", &c);
+      targets[k*5 + j].is_visible = 0;
+      if(c == '\n' || c == ' '){
+        fscanf(mapLevel, "%c", &c);
+      }
+      if(c == '*'){
+        initial_number_of_boxes++;
+        targets[k*5 + j].is_visible = 1;
+      }
+      targets[k*5 + j].x = x;
+      targets[k*5 + j].y = y;
+      targets[k*5 + j].z = PLATFORM_DISTANCE;
+      x += 0.5;
+    }
+    x = -1;
+    y -= 0.5;
+  }
+  fclose(mapLevel);
 }
 
 static void on_display(void){
@@ -432,6 +473,8 @@ static void on_display(void){
     sprintf(score2, "hit: %d targets", hit);
     printText(3.3, 0, 5.5, score2);
 
+    //if there are no more levels the user has won
+    printText(3.3, -0.2, 5.1, you_won_text);
 
     //Here we start sea animation so it moves
     if(!animation_ongoing2) {
