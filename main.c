@@ -21,6 +21,7 @@
 //Texture names
 #define FILENAME0 "box.bmp"
 #define FILENAME1 "stone.bmp"
+#define FILENAME2 "victory.bmp"
 
 //This is a macro that represents z coordinate of the targets
 #define PLATFORM_DISTANCE 4
@@ -63,6 +64,7 @@ int shot, hit;
 char you_won_text[100];
 int initial_number_of_boxes;
 int level; //level number that we're currently on
+int victory;
 
 //coordinates along which the cannon rotates when aiming
 float cannon_movement_x;
@@ -94,12 +96,12 @@ int animation_ongoing;
 const float DEGTORAD = 3.1415769/180.0f; //angle in degrees*DEGTORAD = angle in radians
 
 //IDs for the texture files
-static GLuint names[2];
+static GLuint names[3];
 
 //This variable indicates whether we use the keyboard or the mouse for giving commands
-//k == 1 -> keyboard
-//k == 0 ->mouse
-static int k;
+//keyboardActive == 1 -> keyboard
+//keyboardActive == 0 ->mouse
+int keyboardActive;
 
 //These two functions are copied from openGL library, but with added functionality to draw textured cubes
 static void drawBox(GLfloat size, GLenum type, int texture);
@@ -128,6 +130,7 @@ int main(int argc, char** argv){
 
     //we start with level 1
     level = 1;
+    victory = 0;
 
     //Time for sea movement
     t = 0;
@@ -158,10 +161,10 @@ int main(int argc, char** argv){
     //Flag for ball timer
     animation_ongoing = 0;
 
-    read_map();
-
     //initially we use the mouse for giving commands
-    k = 0;
+    keyboardActive = 0;
+
+    read_map();
 
     Image *image;
     glEnable(GL_TEXTURE_2D);
@@ -172,7 +175,7 @@ int main(int argc, char** argv){
 
     image_read(image, FILENAME0);
 
-    glGenTextures(2, names);
+    glGenTextures(3, names);
 
     //Binding texture for FILENAME0
     glBindTexture(GL_TEXTURE_2D, names[0]);
@@ -200,6 +203,20 @@ int main(int argc, char** argv){
                  GL_RGB, GL_UNSIGNED_BYTE, image->pixels);
 
 
+    image_read(image, FILENAME2);
+
+    //Binding texture for FILENAME2
+    glBindTexture(GL_TEXTURE_2D, names[2]);
+    glTexParameteri(GL_TEXTURE_2D,
+                    GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D,
+                    GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                  image->width, image->height, 0,
+                  GL_RGB, GL_UNSIGNED_BYTE, image->pixels);
+
     //Disabling texturing
     glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -213,7 +230,7 @@ static void on_mouse(int button, int state, int x, int y){
   /*on left mouse button we shoot the cannon ball
   and after it is shot we need to click the right mouse button to reload
   so that we could shoot the ball again*/
-    if(k == 0){
+    if(!keyboardActive){
       if(button == GLUT_LEFT_BUTTON && !animation_ongoing) {
           Time = 0;
           shot += 1;
@@ -240,7 +257,7 @@ static void on_mouse(int button, int state, int x, int y){
 }
 
 static void on_motion(int x, int y){
-    if(k == 0){
+    if(!keyboardActive){
       //Idea for this function is that we first find position X and Y where
       //posX represents pixel distance from the center of the screen in x coordinates
       //and posY represents pixel distance from the center of the screen in y coordinates
@@ -277,10 +294,10 @@ static void on_keyboard(unsigned char key, int x, int y){
       case 'k':
       case 'K':
       //keyboard -> mouse and vice versa
-        k = !k;
+        keyboardActive = !keyboardActive;
         break;
     }
-    if(k == 1){
+    if(keyboardActive){
       switch(key){
           case 'w':
           case 'W':
@@ -406,6 +423,7 @@ static void read_map(){
   sprintf(levelName, "level%d.txt", level);
   FILE* mapLevel = fopen(levelName, "r");
   if(mapLevel == NULL){
+    victory = 1;
     sprintf(you_won_text, "YOU WON!");
     return;
   }
@@ -452,6 +470,31 @@ static void on_display(void){
     GLfloat light_ambient[] = { 0.0, 0.0, 0.0, 1 };
     GLfloat light_diffuse[] = { 0.7, 0.7, 0.7, 1 };
     GLfloat light_specular[] = { 0.9, 0.9, 0.9, 1 };
+
+    /*if there are no more levels the player has won, so
+    an image appears*/
+    if(victory){
+      glMatrixMode(GL_MODELVIEW);
+      glLoadIdentity();
+      glMatrixMode(GL_PROJECTION);
+      glLoadIdentity();
+      glOrtho(0, windowHeight, 0 , windowHeight, -1, 1);
+
+      glBindTexture(GL_TEXTURE_2D, names[2]); /*Drawing background*/
+      glBegin(GL_QUADS);
+        glTexCoord2f(0, 0);
+        glVertex2i(0, 0);
+
+        glTexCoord2f(1, 0);
+        glVertex2i(windowWidth, 0);
+
+        glTexCoord2f(1, 1);
+        glVertex2i(windowWidth, windowHeight);
+
+        glTexCoord2f(0, 1);
+        glVertex2i(0, windowHeight);
+      glEnd();
+    }
 
     //setting camera position, what we are looking at and up vector
     gluLookAt(0,2, -1, 0, 1.1, 0, 0, 1, 0);
