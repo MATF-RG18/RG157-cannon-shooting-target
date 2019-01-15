@@ -26,12 +26,15 @@
 //This is a macro that represents z coordinate of the targets
 #define PLATFORM_DISTANCE 4
 
+int lastHitIndex;
 //Target structure, flag 'is_visible' equals 0 if the target is hit, otherwise it's 1
 typedef struct target {
     double x;
     double y;
     double z;
     int is_visible;
+    int destroy_animation;
+    int destroy_wiggle_animation;
 } TARGET;
 
 TARGET targets[MAX_TARGETS];
@@ -45,16 +48,25 @@ static void on_mouse(int button, int state, int x, int y);
 static void draw_cannon(float radius, float height);
 static void draw_targets();
 static void on_timer2(int value);
+static void animationTimer(int value);
 static float function(float u, float v);
+static void readMapTimer(int value);
 static void set_vertex_and_normal(float u, float v);
 static void plot_function();
 static void read_map();
+static void destroyTranslationTimer(int value);
+static void wiggleTimer(int value);
 //Time for sea movement
 float t;
-
+double cubeAnimationScaleFactor;
+int animatedCube;
 int windowWidth;
 int windowHeight;
 
+double destroyTranslation;
+double wiggleRotation;
+double wiggleTranslation;
+int animation_charge;
 //Flag for on_timer2 function
 static int animation_ongoing2;
 
@@ -132,13 +144,19 @@ int main(int argc, char** argv){
     level = 1;
     victory = 0;
 
+    lastHitIndex = -1;
     //Time for sea movement
     t = 0;
-
+    animatedCube = 0;
     //angles for rotation of the cannon
     cannon_movement_x = 0.0;
     cannon_movement_y = 0.0;
 
+    animation_charge = 1;
+
+    destroyTranslation = 0;
+    wiggleRotation = 0;
+    wiggleTranslation = 0;
 
     //cannon ball position at each given time
     cannon_ball_x = 0;
@@ -157,7 +175,7 @@ int main(int argc, char** argv){
 
     //Time passed since ball was fired
     Time = 0;
-
+    cubeAnimationScaleFactor = 0;
     //Flag for ball timer
     animation_ongoing = 0;
 
@@ -225,13 +243,41 @@ int main(int argc, char** argv){
     glutMainLoop();
     return 0;
 }
+static void wiggleTimer(int value) {
 
+    if(wiggleTranslation > -1 && targets[value].is_visible) {
+        wiggleTranslation -= 0.004;
+        wiggleRotation += 1;
+        glutPostRedisplay();
+        glutTimerFunc(50, wiggleTimer, value);
+    } else if(animatedCube != -1){
+        targets[value].is_visible = 0;
+        targets[value].destroy_wiggle_animation = 0;
+        wiggleTranslation = 0;
+        wiggleRotation = 0;
+        animatedCube = -1;
+        destroyTranslation = 0;
+        return ;
+    }
+}
+static void destroyTranslationTimer(int value) {
+    if(destroyTranslation < 2 && targets[value].destroy_animation) {
+        destroyTranslation += 0.01;
+        glutPostRedisplay();
+        glutTimerFunc(50, destroyTranslationTimer, value);
+    } else {
+        targets[value].destroy_animation = 0;
+        targets[value].destroy_wiggle_animation = 1;
+        glutTimerFunc(50, wiggleTimer, value);
+        return ;
+    }
+}
 static void on_mouse(int button, int state, int x, int y){
   /*on left mouse button we shoot the cannon ball
   and after it is shot we need to click the right mouse button to reload
   so that we could shoot the ball again*/
     if(!keyboardActive){
-      if(button == GLUT_LEFT_BUTTON && !animation_ongoing) {
+      if(button == GLUT_LEFT_BUTTON && !animation_ongoing && state == GLUT_DOWN) {
           Time = 0;
           shot += 1;
           animation_ongoing = 1;
@@ -242,12 +288,13 @@ static void on_mouse(int button, int state, int x, int y){
           glutTimerFunc(50, on_Timer, 0);
           glutPostRedisplay();
       }
-      if(button == GLUT_RIGHT_BUTTON){
+      if(button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN && cannon_ball_y < -2){
             //we need to reset all variables for cannon reloading
               animation_ongoing = 0;
               cannon_ball_z = 0;
               cannon_ball_y = 0;
               cannon_ball_x = 0;
+
               velZ = 0;
               velY = 0;
               velX = 0;
@@ -340,6 +387,7 @@ static void on_keyboard(unsigned char key, int x, int y){
           case 'r':
           case 'R':
               //we need to reset all variables for cannon reloading
+              if(cannon_ball_y < -2) {
               animation_ongoing = 0;
               cannon_ball_z = 0;
               cannon_ball_y = 0;
@@ -349,6 +397,7 @@ static void on_keyboard(unsigned char key, int x, int y){
               velX = 0;
               glutPostRedisplay();
               break;
+          }
       }
     }
 }
@@ -390,20 +439,24 @@ static void on_Timer(int value){
 
                 && cannon_ball_x >= targets[i].x - TARGET_SIZE / 2.0
                 && cannon_ball_x <= targets[i].x + TARGET_SIZE / 2.0
-                && targets[i].is_visible
+                && targets[i].is_visible && !targets[i].destroy_animation
               ){
                 hit += 1;
-                targets[i].is_visible = 0;
+                targets[i].destroy_animation = 1;
+                lastHitIndex = i;
+                animatedCube = i;
                 if(hit == initial_number_of_boxes){
                   /*this means that the current level is over, because all of the
                   targets are hit
                   so we need to reset our variables and increase the level variable*/
                   shot = 0;
                   hit = 0;
-                  initial_number_of_boxes = 0;
                   level++;
-                  read_map();
+                  animation_charge = 1;
+                  targets[animatedCube].destroy_wiggle_animation = 0;
+                  glutTimerFunc(300, readMapTimer, 0);
                 }
+                break;
             }
         }
     }
@@ -417,8 +470,28 @@ static void on_Timer(int value){
         glutTimerFunc(50, on_Timer, 0);
     }
 }
+static void readMapTimer(int value) {
+    if (value != 0)
+        return;
+    if(targets[animatedCube].destroy_wiggle_animation)
+        glutTimerFunc(200, readMapTimer, 0);
+    else
+        read_map();
+}
+static void animationTimer(int value) {
+    if (value != 0)
+        return ;
+    if(cubeAnimationScaleFactor <= 1) {
+        cubeAnimationScaleFactor += 0.03;
+        glutPostRedisplay();
+        glutTimerFunc(50, animationTimer, 0);
+    } else {
+        return ;
+    }
+}
 
 static void read_map(){
+  glutTimerFunc(300, animationTimer, 0);
   char* levelName = (char*)malloc(12*sizeof(char));
   sprintf(levelName, "level%d.txt", level);
   FILE* mapLevel = fopen(levelName, "r");
@@ -434,31 +507,41 @@ static void read_map(){
   double y = 0.5;
   int numOfCols = 5;
   int numOfRows = 3;
-
+  initial_number_of_boxes = 0;
   for(k = 0; k < numOfRows; k++){
     for(j = 0; j < numOfCols; j++){
+
       char c;
       fscanf(mapLevel, "%c", &c);
-      targets[k*5 + j].is_visible = 0;
       if(c == '\n' || c == ' '){
         fscanf(mapLevel, "%c", &c);
       }
+
+
+      targets[k*5 + j].is_visible = 0;
       if(c == '*'){
         initial_number_of_boxes++;
         targets[k*5 + j].is_visible = 1;
       }
+
       targets[k*5 + j].x = x;
       targets[k*5 + j].y = y;
       targets[k*5 + j].z = PLATFORM_DISTANCE;
+      targets[k*5 + j].destroy_animation = 0;
+      targets[k*5 + j].destroy_wiggle_animation = 0;
+
       x += 0.5;
     }
     x = -1;
     y -= 0.5;
   }
+  cubeAnimationScaleFactor = 0;
   fclose(mapLevel);
 }
 
 static void on_display(void){
+    if(!targets[lastHitIndex].is_visible && !hit)
+        targets[lastHitIndex].is_visible = 1;
     //Clear color and depth buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -621,6 +704,16 @@ static void draw_targets() {
         if(targets[i].is_visible) {
             glPushMatrix();
                 glTranslatef(targets[i].x, targets[i].y, targets[i].z);
+                if(targets[i].destroy_animation) {
+                    glTranslatef(0, 0, destroyTranslation);
+                    glutTimerFunc(50, destroyTranslationTimer, i);
+                }
+                if(targets[i].destroy_wiggle_animation) {
+                    glTranslatef(0, 0, destroyTranslation);
+                    glTranslatef(0, wiggleTranslation, 0);
+                    glRotatef(wiggleRotation, 1, 1, 1);
+                }
+                glScalef(cubeAnimationScaleFactor,cubeAnimationScaleFactor,cubeAnimationScaleFactor);
                 glutTexturedSolidCube(TARGET_SIZE, 0); //draw cube and translate it to desired place
             glPopMatrix();
         }
